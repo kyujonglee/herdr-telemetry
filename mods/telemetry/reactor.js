@@ -155,7 +155,8 @@ export default class Reactor {
             .child(div().font_family(HUD).font_weight(700).text_size(12.5).text_color(s.active ? C.ink : C.text).flex_1().min_w(0).truncate().child(track(name)))
             .child(mono(remote ? "—" : sleeping ? "asleep" : `${Math.round(share)}% cpu`, sleeping ? C.cryoHi : C.cyan, 10.5).flex_none())
             .child(mono(remote ? "" : `${l.mem.toFixed(1)} GB`, color, 10.5).flex_none()))
-          .when(!remote, (el) => el.child(rod).child(cpu))
+          // Asleep there's nothing to measure; without the bars the row is one line and WAKE sits level with it.
+          .when(!remote && !sleeping, (el) => el.child(rod).child(cpu))
           .when(remote, (el) => el.child(div().text_size(10).text_color(C.dim).child("remote machine · not measured")))
       )
       .child(btn);
@@ -173,7 +174,10 @@ export default class Reactor {
         .child(h_flex().gap(4).items_center().child(div().w(10).h(3).bg(C.cyan)).child(div().text_size(10).text_color(C.muted).child("cpu"))))
       .child(list.length
         // Spaces on other machines can't be measured or put to sleep from here: not listed.
-        ? v_flex().id("reactor-rows").flex_1().min_h(0).overflow_y_scrollbar().children(list.filter((s) => !s.machine).map((s) => this.row(s, maxMem, all, sl)))
+        // Sleeping spaces first: the footer below takes room, and WAKE mustn't scroll away.
+        ? v_flex().id("reactor-rows").flex_1().min_h(0).overflow_y_scrollbar().children(list.filter((s) => !s.machine)
+          .sort((a, b) => Number(sl.some((x) => x.space === b.id)) - Number(sl.some((x) => x.space === a.id)))
+          .map((s) => this.row(s, maxMem, all, sl)))
         : div().flex_1().flex().items_center().justify_center().child(label("no spaces", C.dim)))
       .when(Boolean(this.error) || sl.length > 0, (el) => el.child(div().border_t(1).border_color("#ffb5471f").pt(6).text_size(10.5).text_color(this.error ? C.redSoft : C.muted)
         .child(this.error ? `Couldn't measure: ${this.error.slice(0, 60)}` : `${sl.length} asleep · about ${freed.toFixed(1)} GB freed. WAKE resumes the same conversations.`)));

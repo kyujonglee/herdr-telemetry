@@ -220,11 +220,11 @@ root column  (titlebar none, traffic_lights [18,17], theme graphite, ui_font Raj
   - 8 repos for PRs
   - 20 open and 6 merged PRs per repo
   - the left column is meant for about 4–8 agents (it scrolls beyond)
-- **Not exercised in this build:**
-  - a real window resize across the 1400 / 1150 thresholds
-  - a click on the tab strip's + menu
-  - clicking the card's own buttons and field inside the app. The cards were checked on screen against live Claude Code prompts (a permission prompt, a multiple choice, a two-question form), and the same key steps were run against those prompts from a script: one choice, ticks with your own words and Submit, your own words on a single choice, a two-question form through its review, and No on the permission prompt.
-  - CRYO and WAKE end to end
+- **Checked by hand in the app** (beyond the scripted runs against live Claude Code prompts: one choice, ticks with your own words and Submit, your own words on a single choice, a two-question form through its review, No on a permission prompt):
+  - ticking a multiple choice on the card, typing your own answer and pressing Submit
+  - the tab strip's + menu opening and closing
+  - CRYO (press twice) quitting a space's agent, and WAKE resuming the same conversation
+  - a window resize across the 1400 / 1150 thresholds folding and restoring the columns
 
 ## Done when
 
