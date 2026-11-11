@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200" viewBox="0 0 320 200">
+  <rect width="320" height="200" fill="#07080a"/>
+  <rect x="0" y="0" width="320" height="14" fill="#0a0b0d"/>
+  <text x="22" y="10" font-family="sans-serif" font-size="6.5" font-weight="700" fill="#ffb547" letter-spacing="1.6">HERDR // COCKPIT</text>
+  <path d="M120 3 V8 M130 3 V6 M140 3 V8 M150 3 V6 M160 3 V8 M170 3 V6 M180 3 V8 M190 3 V6 M200 3 V8" stroke="#ffb547" stroke-opacity="0.6"/>
+  <rect x="5" y="19" width="70" height="40" fill="none" stroke="#ffb547" stroke-opacity="0.3"/>
+  <circle cx="26" cy="40" r="15" fill="#5ce1e6" fill-opacity="0.05" stroke="#5ce1e6" stroke-opacity="0.5"/>
+  <circle cx="26" cy="40" r="7" fill="none" stroke="#5ce1e6" stroke-opacity="0.25"/>
+  <path d="M26 40 L26 25 A15 15 0 0 1 37 30 Z" fill="#5ce1e6" fill-opacity="0.35"/>
+  <circle cx="20" cy="36" r="1.6" fill="#ff5b3a"/><circle cx="33" cy="45" r="1.6" fill="#5ce1e6"/>
+  <rect x="48" y="28" width="4" height="3" fill="#ff5b3a"/><rect x="48" y="35" width="4" height="3" fill="#9be59b"/><rect x="48" y="42" width="4" height="3" fill="#5ce1e6"/><rect x="48" y="49" width="4" height="3" fill="#a39b8b"/>
+  <rect x="5" y="63" width="70" height="132" fill="none" stroke="#ffb547" stroke-opacity="0.3"/>
+  <rect x="9" y="68" width="62" height="26" fill="#ff5b3a" fill-opacity="0.08" stroke="#ff5b3a" stroke-opacity="0.6"/>
+  <rect x="13" y="86" width="18" height="5" fill="#ffb547"/>
+  <rect x="9" y="99" width="1.5" height="20" fill="#9be59b"/><path d="M13 101 H50 M13 107 H66 M13 112 H60 M13 117 H44" stroke="#d8d0c0" stroke-opacity="0.35" stroke-width="2"/>
+  <rect x="9" y="124" width="1.5" height="15" fill="#5ce1e6"/><path d="M13 126 H46 M13 132 H64 M13 137 H52" stroke="#d8d0c0" stroke-opacity="0.35" stroke-width="2"/>
+  <rect x="9" y="144" width="1.5" height="15" fill="#a39b8b"/><path d="M13 146 H40 M13 152 H62 M13 157 H48" stroke="#d8d0c0" stroke-opacity="0.2" stroke-width="2"/>
+  <rect x="80" y="19" width="160" height="9" fill="none" stroke="#ffb547" stroke-opacity="0.2"/>
+  <rect x="84" y="21" width="22" height="5" fill="none" stroke="#ffb547" stroke-opacity="0.7"/>
+  <rect x="80" y="31" width="160" height="164" fill="#0b0c0e" stroke="#ffb547" stroke-opacity="0.5"/>
+  <path d="M88 44 H170 M88 52 H200 M88 60 H150 M88 68 H185 M88 84 H160 M88 92 H190 M88 100 H140" stroke="#d8d0c0" stroke-opacity="0.35" stroke-width="2"/>
+  <rect x="245" y="19" width="70" height="44" fill="none" stroke="#ffb547" stroke-opacity="0.3"/>
+  <path d="M249 29 H264 M249 37 H264 M249 50 H264" stroke="#d8d0c0" stroke-opacity="0.35" stroke-width="2"/>
+  <rect x="270" y="27" width="28" height="4" fill="none" stroke="#ffb547" stroke-opacity="0.5"/><rect x="270" y="27" width="6" height="4" fill="#5ce1e6" fill-opacity="0.6"/>
+  <rect x="270" y="35" width="28" height="4" fill="none" stroke="#ffb547" stroke-opacity="0.5"/><rect x="270" y="35" width="17" height="4" fill="#5ce1e6" fill-opacity="0.6"/>
+  <rect x="270" y="48" width="28" height="4" fill="none" stroke="#ffb547" stroke-opacity="0.5"/><rect x="270" y="48" width="4" height="4" fill="#5ce1e6" fill-opacity="0.6"/>
+  <rect x="245" y="67" width="70" height="88" fill="none" stroke="#ffb547" stroke-opacity="0.3"/>
+  <path d="M249 74 H300" stroke="#ffd28a" stroke-opacity="0.7" stroke-width="2"/>
+  <rect x="249" y="80" width="10" height="3" fill="#ffb547"/><rect x="249" y="86" width="10" height="3" fill="none" stroke="#5ce1e6"/><rect x="249" y="92" width="10" height="3" fill="none" stroke="#ffb547" stroke-opacity="0.3"/><rect x="249" y="98" width="10" height="3" fill="none" stroke="#ffb547" stroke-opacity="0.3"/><rect x="249" y="104" width="10" height="3" fill="none" stroke="#ffb547" stroke-opacity="0.3"/>
+  <path d="M249 116 H296 M249 122 H290 M249 128 H298 M249 134 H284" stroke="#d8d0c0" stroke-opacity="0.25" stroke-width="2"/>
+  <rect x="245" y="159" width="70" height="36" fill="none" stroke="#ffb547" stroke-opacity="0.3"/>
+  <rect x="249" y="170" width="44" height="4" fill="#ffb547" fill-opacity="0.8"/><rect x="249" y="176" width="14" height="1.5" fill="#5ce1e6"/>
+  <rect x="297" y="167" width="14" height="9" fill="none" stroke="#ffb547" stroke-opacity="0.6"/>
+</svg>
