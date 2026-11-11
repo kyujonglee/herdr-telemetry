@@ -4,7 +4,7 @@
 import { div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { agents, run, shared, setShared, setAgentOrder, window as appWindow } from "herdr";
-import { C, HUD, MONO, RANK, label, mono, icon, move, blink, isHidden, track, motionSetting } from "./hud.js";
+import { C, HUD, MONO, label, mono, icon, move, blink, isHidden, track, motionSetting, sessionOrder } from "./hud.js";
 import { fuelColor } from "./data.js";
 
 const pad = (n) => String(n).padStart(2, "0");
@@ -59,9 +59,9 @@ export default class Bar {
 
   render() {
     const list = agents();
-    // agent.next / agent.prev follow this layout's order (input, done, working, idle);
+    // agent.next / agent.prev follow Sessions' order (input, pinned, done, working, idle);
     // set here because the bar never hides.
-    setAgentOrder([...list].sort((a, b) => (RANK[b.status] ?? 0) - (RANK[a.status] ?? 0) || b.seq - a.seq).map((a) => a.address));
+    setAgentOrder(sessionOrder(list).map((a) => a.address));
     const cryo = shared("telemetry.cryo") ?? [];
     const blocked = list.filter((a) => a.status === "blocked");
     const awake = list.filter((a) => a.status === "working").length;

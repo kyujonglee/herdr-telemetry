@@ -50,16 +50,26 @@ Labels are Rajdhani, uppercase, with hair-space tracking. Figures are IBM Plex M
   - Then every other agent as a row:
     - a 2 px status stripe
     - the task title (the terminal title Claude Code sets, else the tab name), in green, cyan or text color
-    - `status · age` on the right
+    - `status · age` on the right, then a pin
     - up to five lines of what it's doing, in mono 11/16 px
   - Asleep agents follow as one dim line each.
+  - **Tree.** Under an agent, indented behind a 1 px amber rule, the sessions it runs (`tree.js`, read every 15 s, one level deep):
+    - Herdr sub-agents: terminals whose `parent` is that agent (`hc run` from inside it), as their own rows. A sub-agent's own sub-agents sit beside it, under the same top agent.
+    - For Claude Code, the sessions it sent `SendMessage` to: `grep -o` of its transcript for the `to` names (the whole file once, then only what was appended since), most recent first, matched to the live sessions in `~/.claude/sessions/*.json` on that machine (pid alive per `ps`). One that is a Herdr agent is nested as its row; any other (Claude Desktop, another terminal) is one line: a dot, its name, `working`/`idle` and age. At most 8 under one agent; further Herdr sub-agents keep their own rows.
+    - A child asking for input stays on top as its card instead.
+    - Clicking a child: a Herdr agent goes there (`agent.focus`, switching space and tab). A background Claude Code session (`claude --bg`, `kind: "bg"`) opens in a new tab in its parent's space running `claude attach <first 8 of its session id>`, or, if a terminal already runs that attach, goes to its tab. Claude Desktop sessions and ones in another terminal app can't be shown: their tooltip says where they are.
+  - **Pins.** Every card, row and asleep line has a small pin (faint; filled amber when on). A pinned session moves to the top of its part of the list: cards asking for input stay first, then pinned rows, then the rest by status. Pins are terminal addresses in shared `telemetry.pins`, so they survive a reload and CRYO / WAKE; a pin goes when its terminal ends. `agent.next` / `agent.prev` follow the same order.
 
 **Center column.**
 - **Tab strip** (34 px):
   - Space chips. The active one is framed cyan; each has a status dot.
   - A + that makes a new space.
   - Numbered tabs. The active one is framed amber with a ×.
-  - A + that opens Herdr's own "new" menu (a terminal, or any installed agent such as Claude Code).
+  - A + that opens Telemetry's own "new" menu (role `launch`, a 400 px popup):
+    - **Start in**: up to 7 folders, one row each, as the whole path in mono (`~/…/` dim, the last folder bold and never cut; `~` stands for that machine's own home only, asked with `printf %s "$HOME"` when it's another machine and kept in shared `telemetry.homes`, so the next open shows ~ at once). The focused terminal's folder is picked at first, so a plain click starts where you are. Then the folders this menu started things in on that machine, most used first (a × forgets one), then where that machine's open terminals are. History is shared `telemetry.folders`, per machine; folders that no longer exist are dropped when the menu opens.
+    - **Add a folder** field: type a path (`~/…`, absolute, or from home) and Enter. It's resolved on that machine (`sh -c 'cd -- "$1" && pwd'`) and, if it's a folder there, kept as an added folder: listed right under the focused one until ×'d, never pushed out by use. While typing, up to 6 folders under what's typed are offered, shown as typed (a `for f in * .[!.]*` listing there, read once per folder and filtered as you type on; hidden ones only after a typed `.`); Tab or Enter on a half-typed name fills the highlighted one in (Enter on `~` alone adds home), ↑/↓ move, a click fills too. Tab/↑/↓ are bound to actions in the field's own key context (`cx.bind_keys`), so the window's Tab doesn't take the keyboard away.
+    - **Terminal**, then **Start an agent**: the installed agents from `knownAgents()` (keys 1–9), each started with `tab.new {folder, argv}` in the picked folder.
+    - **New space here** (`space.new {folder}`), **New worktree…** and **Open worktree…** (Herdr's `worktree` dialog, for the picked folder).
   - At the right, the focused pane's git branch.
 - **Terminal** with Herdr's pane header (28 px), an amber 1 px frame, and a full amber frame when focused.
 
@@ -174,7 +184,8 @@ root column  (titlebar none, traffic_lights [18,17], theme graphite, ui_font Raj
 - Reads: `agents`, `spaces`, `panes`, `terminals`, `machines`, `layout`, `window`, `props`, `shared`/`setShared`, `readTextFile` (with `on`), `home`, `appHome`.
 - Writes and actions: `exec`, `hc`, `run`, `openOverlay`, `setAgentOrder` (set from the bar so `agent.next` follows Sessions' order), `notify`.
 - Commands: `agent.focus`, `space.select`, `space.new`, `space.rename`, `tab.select`, `tab.rename`, `tab.close`, `tab.new`, `tab.prev`, `tab.next`, `layout.toggle`, `layout.show`, `layout.hide`, `layout.resize`.
-- Shipped mods: `pane` (header), `new-menu` and `menu` (popups).
+- Shipped mods: `pane` (header), `menu` (the tab's right-click popup), `worktree` (dialogs from the + menu).
+- Also `knownAgents` (the + menu's agents).
 - `hc`: `read`, `keys`, `send`, `get`, `exec --on <machine>`.
 
 **Programs it runs.**
@@ -192,6 +203,8 @@ root column  (titlebar none, traffic_lights [18,17], theme graphite, ui_font Raj
   - `kill -TERM` on the agent process only; the shell stays.
   - `hc send` to resume.
 - `open <url>` for PRs.
+- `ls -d` on the + menu's remembered folders (on the space's machine), to drop the ones that are gone; `sh -c` to resolve a typed folder, to list the folders under what's typed, and to ask another machine its home.
+- For the session tree, every 15 s per machine: `cat` of `~/.claude/sessions/*.json`, `ps -o pid= -p …`, and `grep -o` of each Claude Code agent's transcript for `SendMessage` targets (after the first read only its new end: `wc -c`, `tail -c`).
 
 **Art.**
 - `icons/` holds single-tint SVGs: radar grid, sweep, ring, chevrons, panel toggles, plus, motion.
@@ -222,7 +235,8 @@ root column  (titlebar none, traffic_lights [18,17], theme graphite, ui_font Raj
   - the left column is meant for about 4–8 agents (it scrolls beyond)
 - **Checked by hand in the app** (beyond the scripted runs against live Claude Code prompts: one choice, ticks with your own words and Submit, your own words on a single choice, a two-question form through its review, No on a permission prompt):
   - ticking a multiple choice on the card, typing your own answer and pressing Submit
-  - the tab strip's + menu opening and closing
+  - the tab strip's + menu: picking a folder and starting a terminal there (its `cwd` checked with `hc get`)
+  - pinning a session (it moved to the top) and unpinning it (it went back)
   - CRYO (press twice) quitting a space's agent, and WAKE resuming the same conversation
   - a window resize across the 1400 / 1150 thresholds folding and restoring the columns
 

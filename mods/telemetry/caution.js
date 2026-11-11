@@ -2,19 +2,21 @@
 // Agents that need input come first, with what they're asking, what it's about
 // (for Claude Code the waiting tool call from its transcript: the whole command,
 // the file, the question's own option texts) and their choices to answer from
-// here: one choice, several ticked then Submit, or your own words. Then every other session:
+// here: one choice, several ticked then Submit, or your own words. Then every other session
+// (pinned ones first: the pin on each row keeps it at the top), each with the sessions
+// it runs under it as a tree (tree.js):
 // its task title, its status and how long ago it changed, and what it's doing or
 // did, in up to five lines (Claude Code's `※ recap`, else its last message, else its title).
 
 import { div } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
-import { agents, spaces, hc, run, exec, home } from "herdr";
-import { C, MONO, STATUS, panel, label, mono, blink, ago, agentTitle, agentWhere } from "./hud.js";
+import { agents, spaces, panes, terminals, hc, run, exec, home } from "herdr";
+import { C, MONO, STATUS, panel, label, mono, blink, ago, agentTitle, agentWhere, icon, pins, togglePin, prunePins, sessionOrder } from "./hud.js";
 import { parseScreen, sameMenu, moveKeys, pendingTool, describeTool, transcriptPath } from "./data.js";
 import { sleepers } from "./cryo.js";
+import { readTree, attachId, attachOf } from "./tree.js";
 
 const RECHECK = 20000; // a working agent's screen is re-read this often
-const ORDER = { blocked: 0, done: 1, working: 2, idle: 3 };
 const isClaude = (a) => a.app === "claude-code" || a.program?.key === "claude";
 const norm = (s) => String(s ?? "").replace(/\s+/g, " ").trim();
 const sigOf = (q) => (q?.choices?.length ? `${q.text}|${q.choices.map((c) => c.label).join("|")}` : "");
@@ -33,12 +35,83 @@ export default class Caution {
     this.pending = new Set(); // addresses with a key press on its way
     this.picks = new Map(); // address → { sig, set }: the boxes ticked here for a multiple choice
     this.inputs = new Map(); // address → InputState: your own answer
+    this.tree = { kids: new Map(), under: new Map() }; // sessions each agent runs under it (tree.js)
+    this.treePids = new Map();
+    this.treeSent = new Map(); // transcript → what it was found to message, and up to where it was read
     cx.timer.every(2500, (cx) => this.sync(cx));
+    cx.timer.every(15000, (cx) => this.loadTree(cx));
     this.sync(cx);
+    this.loadTree(cx);
+  }
+
+  loadTree(cx) {
+    if (this.treeBusy) return;
+    this.treeBusy = true;
+    cx.spawn(async (cx) => {
+      try { this.tree = await readTree(this.sessions(), this.treePids, this.treeSent); } catch {}
+      this.treeBusy = false;
+      cx.notify();
+    });
+  }
+
+  // Under its parent: a Herdr agent as its own (indented) row, any other session as one line.
+  children(parent, byAddress) {
+    const kids = (this.tree.kids.get(parent.address) ?? []).filter((c) => !c.address || this.nested(byAddress.get(c.address), byAddress));
+    if (!kids.length) return null;
+    return v_flex().id(`kids-${parent.address}`).gap(2).ml(6).pl(8).border_l(1).border_color("#ffb54733")
+      .children(kids.map((c) => (c.address ? this.row(byAddress.get(c.address)) : this.outside(c, parent))));
+  }
+
+  // Opens a background session in a tab (`claude attach <id>`), in its parent's space,
+  // or goes to the tab that already has it open.
+  attach(c, parent, cx) {
+    const id = attachId(c.sessionId);
+    // A second click right after the first would open it twice: its tab's shell takes a moment to run the attach.
+    if (!id || (this.attached?.id === id && Date.now() - this.attached.at < 3000)) return;
+    this.attached = { id, at: Date.now() };
+    cx.spawn(async (cx) => {
+      for (const t of terminals().filter((t) => t.state === "live")) {
+        const g = await hc(["get", String(t.address), "--json"]).catch(() => null);
+        let fg = null;
+        try { fg = JSON.parse(g?.stdout ?? "")?.foreground ?? null; } catch {}
+        const open = attachOf(fg?.argv);
+        if (!open || !id.startsWith(open.slice(0, 8))) continue;
+        // An attach window doesn't report a status (not an agent): go to its tab.
+        const pane = panes().find((p) => p.terminal === String(t.address));
+        if (pane) run("tab.select", { id: pane.tab }); else run("terminal.keep", { terminal: String(t.address), place: "tab" });
+        return;
+      }
+      run("tab.new", { name: c.name, space: parent.space, folder: c.cwd ?? undefined, argv: ["claude", "attach", id] });
+      cx.notify();
+    });
+  }
+
+  // Shown under its parent rather than on its own: not while it asks for input (that card stays on top).
+  nested(a, byAddress) {
+    const p = a && this.tree.under.get(a.address);
+    return Boolean(p && byAddress.has(p) && a.status !== "blocked");
+  }
+
+  // A session its parent directs that isn't in Herdr. A background one (`claude --bg`)
+  // opens in a tab with `claude attach`; Claude Desktop's, or one running in another
+  // terminal app, can't be shown here.
+  outside(c, parent) {
+    const busy = c.status === "busy";
+    const color = busy ? C.cyan : c.status === "idle" ? C.muted : C.amber;
+    const bg = c.kind === "bg" || c.kind === "background";
+    const where = bg ? "background Claude Code session · click to open it in a tab (claude attach)"
+      : c.entrypoint === "claude-desktop" ? "Claude Desktop session · open it in Claude Desktop"
+      : "Claude Code session in another terminal app";
+    return h_flex().id(`out-${c.name}`).gap(6).items_center().py(3).px(4)
+      .when(bg, (el) => el.cursor_pointer().hover((h) => h.bg("#ffb54714")).on_click((_e, cx) => this.attach(c, parent, cx)))
+      .tooltip(`${c.name}\n${where}${c.cwd ? `\n${c.cwd}` : ""}`)
+      .child(div().w(5).h(5).flex_none().bg(color))
+      .child(div().text_size(11.5).text_color(C.text).flex_1().min_w(0).truncate().child(c.name))
+      .child(div().text_size(10).text_color(color).whitespace_nowrap().child(`${busy ? "working" : c.status ?? "?"}${c.at ? ` · ${since(c.at)}` : ""}`));
   }
 
   sessions() {
-    return [...agents()].sort((a, b) => (ORDER[a.status] ?? 4) - (ORDER[b.status] ?? 4) || b.seq - a.seq);
+    return sessionOrder(agents());
   }
 
   // Read a screen when its agent's state moved (seq); a working one also every 20 s,
@@ -47,6 +120,7 @@ export default class Caution {
     const now = Date.now();
     const list = this.sessions();
     const live = new Set(list.map((a) => a.address));
+    prunePins(terminals());
     for (const k of [...this.seen.keys()]) if (!live.has(k)) { this.seen.delete(k); this.sent.delete(k); this.reads.delete(k); this.picks.delete(k); }
     for (const [k, st] of [...this.inputs]) if (!live.has(k)) { st.release(); this.inputs.delete(k); }
     for (const a of list) {
@@ -283,6 +357,7 @@ export default class Caution {
             .child(div().text_size(13).font_weight(700).text_color(C.ink).truncate().child(agentTitle(a)))
             .child(div().text_size(10.5).text_color(C.muted).truncate().child(agentWhere(a))))
           .child(div().text_size(10.5).text_color(C.redSoft).whitespace_nowrap().child(this.age(a)))
+          .child(this.pin(a.address))
       )
       // What it's about: the waiting tool call (whole command, file), else the box on screen.
       .when(Boolean(about), (el) =>
@@ -331,7 +406,8 @@ export default class Caution {
         v_flex().flex_1().min_w(0).gap(3)
           .child(h_flex().gap(6).items_center()
             .child(div().text_size(12.5).font_weight(700).text_color(tc).flex_1().min_w(0).truncate().child(title))
-            .child(div().text_size(10).text_color(st.c).whitespace_nowrap().child(`${(st.word ?? "").toLowerCase()} · ${this.age(a)}`)))
+            .child(div().text_size(10).text_color(st.c).whitespace_nowrap().child(`${(st.word ?? "").toLowerCase()} · ${this.age(a)}`))
+            .child(this.pin(a.address)))
           // Up to five lines of what it's doing (the left column has the room).
           .when(Boolean(line), (el) => el.child(
             div().font_family(MONO).text_size(11).line_height("16px").max_h(80).overflow_hidden()
@@ -345,17 +421,32 @@ export default class Caution {
       .tooltip("Asleep: wake it in Resources")
       .child(div().w(2).h(16).flex_none().bg(C.cryo))
       .child(div().text_size(12.5).font_weight(700).text_color(C.cryoHi).flex_1().min_w(0).truncate().child(s.title || s.app || s.address))
-      .child(div().text_size(10).text_color(C.cryo).whitespace_nowrap().child("asleep"));
+      .child(div().text_size(10).text_color(C.cryo).whitespace_nowrap().child("asleep"))
+      .child(this.pin(s.address));
+  }
+
+  // Pin: keeps a session at the top of the list (under the ones asking for input).
+  // Its own click: the row's click (go to the agent) doesn't fire.
+  pin(address) {
+    const on = pins().has(address);
+    return div().id(`pin-${address}`).w(18).h(18).flex().flex_none().items_center().justify_center().cursor_pointer()
+      .hover((st) => st.bg("#ffb5471f"))
+      .tooltip(on ? "Unpin: back to its usual place" : "Pin to the top of Sessions")
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click((_e, cx) => { cx.stop_propagation(); togglePin(address); cx.notify(); })
+      .child(icon(on ? "pin-on" : "pin", 11, on ? C.amber : C.faint));
   }
 
   body() {
     const list = this.sessions();
+    const byAddress = new Map(list.map((a) => [a.address, a]));
     const holds = list.filter((a) => a.status === "blocked");
-    const rest = list.filter((a) => a.status !== "blocked");
-    const sl = sleepers();
+    const rest = list.filter((a) => a.status !== "blocked" && !this.nested(a, byAddress));
+    const pinned = pins();
+    const sl = [...sleepers()].sort((a, b) => Number(pinned.has(b.address)) - Number(pinned.has(a.address)));
     return v_flex().id("sessions").size_full().px(10).py(8).gap(8).overflow_y_scrollbar()
-      .children(holds.map((a) => this.hold(a)))
-      .children(rest.map((a) => this.row(a)))
+      .children(holds.flatMap((a) => [this.hold(a), this.children(a, byAddress)].filter(Boolean)))
+      .children(rest.flatMap((a) => [this.row(a), this.children(a, byAddress)].filter(Boolean)))
       .children(sl.map((s) => this.sleeper(s)))
       .when(!list.length && !sl.length, (el) => el.child(v_flex().py(14).items_center().gap(4).child(label("no sessions", C.dim)).child(div().text_size(11).text_color(C.dim).child("Start one with + in the tab strip"))));
   }

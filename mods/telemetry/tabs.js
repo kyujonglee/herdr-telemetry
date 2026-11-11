@@ -1,6 +1,6 @@
 // The strip above the terminals: every space as a chip, then the shown space's
-// tabs as numbered HUD tabs. Works like Herdr's own tab bar: + opens the same
-// "new" menu (a terminal or any installed agent, e.g. Claude Code), a double
+// tabs as numbered HUD tabs. Works like Herdr's own tab bar: + opens a "new" menu
+// (a terminal or any installed agent, e.g. Claude Code, in a folder you pick: launch.js), a double
 // click renames, right click opens the tab menu, the wheel switches tabs, × closes.
 // The focused pane's git branch sits at the right (its folder is in the pane's own
 // header). Narrow strips drop the branch first, then shorten space chips to 3 letters.
@@ -87,7 +87,7 @@ export default class Tabs {
       .child(plus("new-space", "New space", () => run("space.new", {})))
       .child(div().w(1).h(18).mx(4).flex_none().bg("#ffb54733"))
       .child(h_flex().gap(3).items_center().min_w(0).flex_shrink(1).overflow_hidden().children(tabs.map(tab)))
-      .child(plus("new-tab", "New tab: a terminal or an agent (Claude Code, Codex, …)", () => openOverlay({ mod: "new-menu", kind: "popup", width: 250, height: 512 })))
+      .child(plus("new-tab", "New tab: a terminal or an agent (Claude Code, Codex, …)", () => openOverlay({ mod: "telemetry", kind: "popup", width: 400, height: 640, props: { role: "launch" } })))
       .child(div().flex_1().min_w(0))
       .when(showWhere, (el) =>
         el.child(div().id("branch").min_w(0).max_w(Math.round(w * 0.3)).flex_shrink(8).font_family(MONO).text_size(10.5).text_color(C.muted).truncate()

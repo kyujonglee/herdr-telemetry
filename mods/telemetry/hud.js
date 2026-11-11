@@ -42,6 +42,34 @@ export const STATUS = {
 };
 export const RANK = { blocked: 4, done: 3, working: 2, idle: 1 };
 
+// Pinned sessions (shared "telemetry.pins", terminal addresses): kept at the top of
+// Sessions, under the ones asking for input, and first for agent.next / agent.prev.
+const PINS = "telemetry.pins";
+export const pins = () => new Set(Array.isArray(shared(PINS)) ? shared(PINS) : []);
+export function togglePin(address) {
+  const p = pins();
+  if (!p.delete(address)) p.add(address);
+  setShared(PINS, [...p]);
+}
+/** Drops pins whose terminal has ended. Missing from the list isn't enough: a machine
+ *  still connecting, or a startup before terminals load, lists nothing. */
+export function prunePins(terminals) {
+  const p = pins();
+  if (!p.size) return;
+  const known = new Map(terminals.map((t) => [String(t.address), t.state]));
+  const keep = [...p].filter((a) => !known.has(a) || known.get(a) === "live");
+  if (keep.length !== p.size) setShared(PINS, keep);
+}
+/** Session order: asking for input first, then pinned, then by status, newest change first. */
+export function sessionOrder(list) {
+  const p = pins();
+  const key = (a) => [a.status === "blocked" ? 0 : 1, p.has(a.address) ? 0 : 1, -(RANK[a.status] ?? 0)];
+  return [...list].sort((a, b) => {
+    const x = key(a), y = key(b);
+    return x[0] - y[0] || x[1] - y[1] || x[2] - y[2] || b.seq - a.seq;
+  });
+}
+
 // Rajdhani has no letter-spacing control here: hair spaces stand in for tracking.
 // Hangul keeps its own spacing.
 const HANGUL = /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]/;

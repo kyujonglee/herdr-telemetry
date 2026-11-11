@@ -7,6 +7,7 @@
 //   dock     pull requests as docking stages: open, checks, review, merge, deploy
 //   fuel     Claude Code and Codex plan limits as gauges, per account (and machine)
 //   reactor  CPU and memory per space, and Cryo / Wake
+//   launch   the + menu over the tabs (an overlay): a terminal or an agent in a folder you pick
 // `block` is the role's layout node (its title strip folds it), `open` its unfolded size.
 // Without a role (as `herdr-app check` loads it) every role draws, for a look at all of them.
 
@@ -20,10 +21,11 @@ import Caution from "./caution.js";
 import Dock from "./dock.js";
 import Fuel from "./fuel.js";
 import Reactor from "./reactor.js";
+import Launch from "./launch.js";
 import { C } from "./hud.js";
 
-const ROLES = { bar: Bar, tabs: Tabs, radar: Radar, caution: Caution, dock: Dock, fuel: Fuel, reactor: Reactor };
-const SAMPLE = { bar: [1100, 48], tabs: [760, 34], radar: [300, 190], caution: [300, 640], dock: [300, 460], fuel: [300, 250], reactor: [300, 230] };
+const ROLES = { bar: Bar, tabs: Tabs, radar: Radar, caution: Caution, dock: Dock, fuel: Fuel, reactor: Reactor, launch: Launch };
+const SAMPLE = { bar: [1100, 48], tabs: [760, 34], radar: [300, 190], caution: [300, 640], dock: [300, 460], fuel: [300, 250], reactor: [300, 230], launch: [300, 520] };
 
 export default class Telemetry extends View {
   init(p, cx) {
@@ -40,6 +42,11 @@ export default class Telemetry extends View {
       r.init?.({ role: name }, cx);
       return [name, r];
     });
+  }
+
+  // A role that holds native state (an input) lets it go when its copy closes.
+  close(cx) {
+    for (const r of this.all ? this.all.map(([, r]) => r) : [this.role]) r?.close?.(cx);
   }
 
   render(cx) {
