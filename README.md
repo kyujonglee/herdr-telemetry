@@ -51,3 +51,7 @@ The bundled fonts are under the SIL Open Font License; their license files are i
 ## Credits
 
 The menu reader and the key sequences that answer it are ported from [herdr-relevo](https://github.com/johnny4young/herdr-relevo)'s `lib/prompt.js` (Apache-2.0) by way of [quaresc/cockpit](https://github.com/quaresc/cockpit)'s Rust port (MIT); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## License
+
+MIT, see [LICENSE](LICENSE). The bundled fonts keep their own SIL Open Font License, and the ported parts listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) keep theirs (Apache-2.0 and MIT).

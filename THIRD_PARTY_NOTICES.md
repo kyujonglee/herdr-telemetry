@@ -1,6 +1,6 @@
 # Third-party notices
 
-Some code in this repository is ported from other open-source projects, which keep their own licences.
+This repository is MIT-licensed (see `LICENSE`). Some code in it is ported from other open-source projects, which keep their own licences.
 
 ## herdr-relevo (Apache License 2.0)
 
