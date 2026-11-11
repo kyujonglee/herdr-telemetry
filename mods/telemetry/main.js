@@ -1,4 +1,4 @@
-// Cockpit: a flight-HUD layout for Herdr, one mod in roles. The layout gives
+// Telemetry: a flight-HUD layout for Herdr, one mod in roles. The layout gives
 // each copy props { role, block, open }:
 //   bar      the title bar: heading tape, active / caution / used, clock, column switches
 //   tabs     spaces and the shown space's tabs, above the terminals
@@ -25,7 +25,7 @@ import { C } from "./hud.js";
 const ROLES = { bar: Bar, tabs: Tabs, radar: Radar, caution: Caution, dock: Dock, fuel: Fuel, reactor: Reactor };
 const SAMPLE = { bar: [1100, 48], tabs: [760, 34], radar: [300, 190], caution: [300, 640], dock: [300, 460], fuel: [300, 250], reactor: [300, 230] };
 
-export default class Cockpit extends View {
+export default class Telemetry extends View {
   init(p, cx) {
     const pr = props() ?? p ?? {};
     if (pr.role) {
@@ -44,10 +44,10 @@ export default class Cockpit extends View {
 
   render(cx) {
     if (this.all)
-      return v_flex().size_full().gap(12).p(12).bg(C.bg).overflow_y_scrollbar().id("cockpit-all").children(
+      return v_flex().size_full().gap(12).p(12).bg(C.bg).overflow_y_scrollbar().id("telemetry-all").children(
         this.all.map(([name, r]) => div().w(SAMPLE[name][0]).h(SAMPLE[name][1]).flex_none().child(r.render(cx)))
       );
-    if (!this.role) return div().text_color(C.red).child(`cockpit: no role "${this.missing}"`);
+    if (!this.role) return div().text_color(C.red).child(`telemetry: no role "${this.missing}"`);
     return this.role.render(cx);
   }
 }

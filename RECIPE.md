@@ -1,8 +1,8 @@
-# Cockpit
+# Telemetry
 
 A flight-HUD layout for people who run several coding agents at once. The terminal sits in the middle. On the left are a small radar of your agents and a **Sessions** list showing what every agent is doing, in a few lines each. On the right are your **plan limits** (Claude Code and Codex, for the machine you're on), your **pull requests** as five docking stages, and **resources** per space, with a CRYO button that puts a space's agents to sleep without losing their conversations. Everything is amber and cyan on near-black, in Rajdhani and IBM Plex Mono.
 
-![Cockpit](preview.png)
+![Telemetry](preview.png)
 
 ## What you see
 
@@ -24,7 +24,7 @@ The palette:
 Labels are Rajdhani, uppercase, with hair-space tracking. Figures are IBM Plex Mono. The layout's theme is `graphite`, with the colors above as overrides.
 
 **Bar (48 px, draggable).** From left to right:
-- `HERDR // COCKPIT` in amber, leaving room for the traffic lights at (18, 17).
+- `HERDR // TELEMETRY` in amber, leaving room for the traffic lights at (18, 17).
 - A heading tape: ticks every 10°, numbered every 30°, sliding slowly, with a cyan ▼ marker.
 - Readouts:
   - **Active** `working/total`.
@@ -41,9 +41,11 @@ Labels are Rajdhani, uppercase, with hair-space tracking. Figures are IBM Plex M
 - **Sessions** (the rest):
   - Agents that need input come first, as a red-framed card with:
     - the agent's title and where it is
-    - the context block it's asking about (the command or file, in mono on black)
-    - the question
-    - its numbered choices as buttons, the preselected one filled amber
+    - what it's asking about, in mono on black. For Claude Code this is the waiting tool call read from its transcript: the whole Bash command with its description, or the file an edit goes to. Otherwise it's the box on screen.
+    - the question (for a multi-question form, `2 of 3 · header` above it)
+    - its choices, one per row: number, label, and the option's description (from the transcript when the screen cuts it)
+    - for a multiple choice, a checkbox per row and a **Submit · n ticked** button
+    - when the menu has a free-text choice ("Type something"), a field: **Your own answer · Enter sends**
     - an **Open** button
   - Then every other agent as a row:
     - a 2 px status stripe
@@ -94,7 +96,11 @@ Every panel has a 28 px title strip. Clicking the strip folds the panel to the s
 
 **Clicks.**
 - A radar mark or a Sessions row goes to that agent (`agent.focus`). Hovering shows where it is.
-- A choice button answers a blocked agent. It re-reads the screen first and presses the key only if the same question and choices are still showing; otherwise it opens the agent. Each answer is sent once.
+- Answering a blocked agent from its card. Every answer first re-reads the screen and goes ahead only if the same question and choices are still showing; otherwise it opens the agent. Each answer is sent once.
+  - One choice: arrows from the cursor to it, then Enter.
+  - Several choices: tick the rows (nothing is sent yet), then **Submit**. It presses the numbers whose box differs from what you ticked, types your own answer into the free field if you wrote one, moves to Submit and presses Enter.
+  - Your own answer: Enter in the field presses the free choice's number, then pastes the text with Enter (`hc send --force`).
+  - A question form that ends on "Ready to submit your answers?" is submitted too.
 - Bar:
   - Caution goes to the agent that needs you; at 0 it shows the left column.
   - The toggles show or hide a column.
@@ -120,7 +126,8 @@ Every panel has a 28 px title strip. Clicking the strip folds the panel to the s
 
 | What | How often | How |
 |---|---|---|
-| Sessions | when an agent's state changes; a working agent also every 20 s | its screen's last 80 lines: Claude Code's `※ recap:`, else its last paragraph of prose, else its last step |
+| Sessions | when an agent's state changes; a working agent also every 20 s | its screen's last 80 lines: Claude Code's `※ recap:`, else its last paragraph of prose, else its last step; the menu at the bottom |
+| Waiting tool call | when a Claude Code agent turns blocked, then up to 3 more times 3 s apart until found | `hc get` → its pid → `~/.claude/sessions/<pid>.json` (session id, folder) → the last 400 KB of `~/.claude/projects/<folder>/<session>.jsonl`; the newest `tool_use` without a `tool_result` |
 | Plan limits | every 5 min, for this Mac and every connected machine | the shown one follows the active space |
 | Pull requests | every 90 s, or 30 s while something runs | skipped while hidden or folded |
 | Resources | every 5 s | skipped while hidden or folded |
@@ -129,12 +136,12 @@ Every panel has a 28 px title strip. Clicking the strip folds the panel to the s
 
 ## Built from
 
-**Layout** `layouts/cockpit.json`:
+**Layout** `layouts/telemetry.json`:
 
 ```
 root column  (titlebar none, traffic_lights [18,17], theme graphite, ui_font Rajdhani,
               background #07080a, terminal_padding [12,10], color overrides)
-├─ c-bar     block 48 px, window_drag          mod cockpit {role: bar}
+├─ c-bar     block 48 px, window_drag          mod telemetry {role: bar}
 └─ c-body    row, padding 12, gap 12
    ├─ c-left   column 300 px, gap 12
    │  ├─ c-radar    block 190 px   {role: radar,   block, open: {px:190}}
@@ -148,22 +155,24 @@ root column  (titlebar none, traffic_lights [18,17], theme graphite, ui_font Raj
       └─ c-reactor  block weight 1 {role: reactor}
 ```
 
-**One mod, `mods/cockpit`, in roles.**
+**One mod, `mods/telemetry`, in roles.**
 - `main.js` picks the role from `props().role`. With no role (as `herdr-app check` loads it), it draws every role at sample sizes.
 - `hud.js` holds:
   - the palette, `label`/`mono`/`icon`, and `track()` (hair spaces for tracking)
   - `move()`/`blink()` gated on the motion switch and `window().active`
   - `gradient`/`stripes` via `window.paint_path` with `Background`
-  - `panel()`: the frame with its fold strip. Folding is `layout.resize {px: 30}`; the old size goes in shared `cockpit.size.<id>`, and an open sibling is lent `weight 1` so the column has no hole.
+  - `panel()`: the frame with its fold strip. Folding is `layout.resize {px: 30}`; the old size goes in shared `telemetry.size.<id>`, and an open sibling is lent `weight 1` so the column has no hole.
   - `agentTitle` and `agentWhere`
 - `data.js`:
-  - `parseScreen` for recap, last prose, last step, question, context box and numbered options
+  - `parseScreen` for recap, last prose and last step
+  - `readMenu` for the menu: question, choices with details, checkboxes, cursor, where Submit sits, the free-text choice, whether it's a permission prompt, and the box above it; `moveKeys` for the arrows to a choice or to Submit (ported from herdr-relevo, see THIRD_PARTY_NOTICES.md)
+  - `pendingTool` and `describeTool` for the transcript
   - the usage parsers
   - PR `stages` and `verdict`
 
 **Herdr API.**
 - Reads: `agents`, `spaces`, `panes`, `terminals`, `machines`, `layout`, `window`, `props`, `shared`/`setShared`, `readTextFile` (with `on`), `home`, `appHome`.
-- Writes and actions: `exec`, `hc`, `run`, `openOverlay`, `setAgentOrder` (set from the bar so `agent.next` follows the cockpit's order), `notify`.
+- Writes and actions: `exec`, `hc`, `run`, `openOverlay`, `setAgentOrder` (set from the bar so `agent.next` follows Sessions' order), `notify`.
 - Commands: `agent.focus`, `space.select`, `space.new`, `space.rename`, `tab.select`, `tab.rename`, `tab.close`, `tab.new`, `tab.prev`, `tab.next`, `layout.toggle`, `layout.show`, `layout.hide`, `layout.resize`.
 - Shipped mods: `pane` (header), `new-menu` and `menu` (popups).
 - `hc`: `read`, `keys`, `send`, `get`, `exec --on <machine>`.
@@ -177,6 +186,7 @@ root column  (titlebar none, traffic_lights [18,17], theme graphite, ui_font Raj
 - Both scripts run locally, and on other machines via `hc exec --on`.
 - `gh pr list --author @me` (open, plus merged in the last day), `gh run list --commit`, and `gh api …/commits/<sha>/status` (Vercel and other deploy statuses), with `git rev-parse` to find repos from the panes' folders.
 - `ps -axo pid,ppid,rss,%cpu` summed over each terminal's process tree, and `sysctl hw.ncpu` to show CPU as a share of the machine.
+- `cat` and `tail -c` for a blocked Claude Code agent's session file and transcript (on its own machine).
 - For CRYO:
   - `~/.claude/sessions/<pid>.json` for a Claude Code session id, and `lsof` for Codex's rollout file.
   - `kill -TERM` on the agent process only; the shell stays.
@@ -189,20 +199,21 @@ root column  (titlebar none, traffic_lights [18,17], theme graphite, ui_font Raj
 
 ## Watch out
 
-- **It runs programs and reads outside its folder.** That covers `claude`, `codex app-server`, `gh`, `git`, `ps`, `lsof`, `sysctl`, `kill` (CRYO only), `open`, `hc exec` on your connected machines, and `~/.claude/sessions/*.json`.
+- **It runs programs and reads outside its folder.** That covers `claude`, `codex app-server`, `gh`, `git`, `ps`, `lsof`, `sysctl`, `kill` (CRYO only), `open`, `cat`, `tail`, `hc exec` on your connected machines, `~/.claude/sessions/*.json`, and the end of a blocked Claude Code agent's transcript.
   - The account email is only drawn on screen.
-  - It sends keys to a terminal only when you press a choice button.
+  - It types into a terminal only when you press a choice, Submit, or Enter in the answer field.
 - **macOS-oriented.** It relies on `ps -axo …`, `sysctl hw.ncpu`, `lsof` and `open`. Linux needs those swapped.
 - **`get_usage` is an internal Claude Code control request.** A CLI update may change it; the panel then shows "no answer".
-- **The same login can show different limits on two machines.** That's why Plan limits follows the active space's machine, not the email.
-- **Paths are hard-coded to `mods/cockpit`** (icons and helpers). If you rename the mod, change `ASSETS` in `hud.js` and the helpers path in `fuel.js`.
+- **The same login can show different limits on two machines.** Seen on one Max account: the two machines' `get_usage` replies had different weekly windows (different start and reset times). Plan limits shows each machine's own reply and follows the active space's machine. A reply that leaves out a window it gave before keeps the last numbers for that window until it would have reset.
+- **Paths are hard-coded to `mods/telemetry`** (icons and helpers). If you rename the mod, change `ASSETS` in `hud.js` and the helpers path in `fuel.js`.
 - **gpui details that bit the build:**
   - `line_height(n)` is a multiplier; use `"16px"`.
   - `flex_shrink()` and `flex_grow()` need an argument.
   - `bg()` takes hex only; gradients go through `paint_path`.
   - There is no `line_clamp`; use `max_h` with `overflow_hidden`.
   - There is no letter-spacing; use hair spaces.
-- **Sessions only knows what is on screen.** A screen full of tool output keeps the previous summary or shows `▸ last step`. Codex's prose bullets are `•`. Claude Code's sub-agent list uses `●` and is skipped.
+- **Menus are read off the screen.** The key sequences were measured on Claude Code 2.1's menus (single and multiple choice, free text, the review step). Another layout of menu falls back to **Open to answer**.
+- **Sessions only knows what is on screen** (apart from the waiting tool call). A screen full of tool output keeps the previous summary or shows `▸ last step`. Codex's prose bullets are `•`. Claude Code's sub-agent list uses `●` and is skipped.
 - **Remote spaces aren't measured.** CRYO and WAKE work only for spaces on this machine.
 - **Limits:**
   - 3 limit windows per provider
@@ -212,15 +223,16 @@ root column  (titlebar none, traffic_lights [18,17], theme graphite, ui_font Raj
 - **Not exercised in this build:**
   - a real window resize across the 1400 / 1150 thresholds
   - a click on the tab strip's + menu
-  - a blocked agent's choice buttons against a live prompt
+  - clicking the card's own buttons and field inside the app. The cards were checked on screen against live Claude Code prompts (a permission prompt, a multiple choice, a two-question form), and the same key steps were run against those prompts from a script: one choice, ticks with your own words and Submit, your own words on a single choice, a two-question form through its review, and No on the permission prompt.
   - CRYO and WAKE end to end
 
 ## Done when
 
-- `herdr-app check mods/cockpit` passes, and `herdr-app status` shows no errors after `layout.switch {name: "cockpit"}`.
+- `herdr-app check mods/telemetry` passes, and `herdr-app status` shows no errors after `layout.switch {name: "telemetry"}`.
 - The bar shows Active / Caution / Used and the clock, and the left and right toggles hide and show their columns.
 - Clicking a panel's title strip folds it to 30 px with a one-line summary, and clicking again restores it.
 - Sessions lists every agent from `agents()` with its title, status, age and a summary line from its screen.
+- A blocked Claude Code agent shows the waiting tool call (the whole Bash command, or the question's option descriptions), and its choices, ticks, Submit and answer field when the menu has them.
 - The radar counts match `hc ls`.
 - Plan limits shows Claude Code and Codex rows with plan and email. Switching to a space on another machine switches the machine chip and numbers, and the bar's Used follows.
 - Pull requests lists your open PRs from `gh` with five stages, merged ones read `deployed` once their deploy succeeded, and clicking opens GitHub.

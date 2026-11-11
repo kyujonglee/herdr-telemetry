@@ -1,9 +1,8 @@
-// Pure parsers for what the cockpit reads: agent screens, plan limits, pull requests.
+// Pure parsers for what the telemetry reads: agent screens, plan limits, pull requests.
 // No herdr or gpui imports, so each one can be tried on recorded text.
 
 // ---- agent screens (`hc read`)
 
-const BOX = /^[\s│┃|╭╮╰╯─━┌┐└┘├┤┬┴┼▌▐]+$/;
 const strip = (l) => l.replace(/[│┃]/g, " ").replace(/\s+$/, "");
 
 /**
@@ -37,58 +36,176 @@ export function parseScreen(text) {
     }
   }
 
-  // A numbered choice near the bottom: 1., 2., … in order, with the question above it.
-  let options = null;
-  let question = null;
-  let context = [];
-  const tail = Math.max(0, lines.length - 40);
-  for (let end = lines.length - 1; end >= tail && !options; end--) {
-    const opt = (l) => l.match(/^\s*(?:[❯›>▶]\s*)?(\d)[.)]\s+(.+?)\s*$/);
-    const m = opt(lines[end]);
-    if (!m) continue;
-    // Walk up collecting a contiguous run (continuation lines may sit between).
-    const found = [];
-    let i = end;
-    for (; i >= tail; i--) {
-      const o = opt(lines[i]);
-      if (o) found.unshift({ key: o[1], text: o[2], selected: /^\s*[❯›>▶]/.test(lines[i]) });
-      else if (lines[i].trim() === "" || BOX.test(lines[i])) break;
-      else if (!/^\s{3,}\S/.test(lines[i])) break;
-    }
-    const ok = found.length >= 2 && found.length <= 9 && found.every((o, k) => o.key === String(k + 1));
-    if (!ok) break;
-    options = found;
-    // The question is the nearest line above; what it's about (the command, the file)
-    // is the rest of its box above that, up to 8 lines, stopping at the box's top edge.
-    const above = [];
-    let blanks = 0;
-    for (let k = i; k >= tail && above.length < 9; k--) {
-      const raw = lines[k];
-      if (BOX.test(raw) && raw.trim()) break;
-      const l = raw.trim();
-      if (!l) { if (above.length && ++blanks >= 2) break; continue; }
-      blanks = 0;
-      above.unshift(l);
-    }
-    question = above.pop() ?? null;
-    context = above.slice(-8);
-  }
   // Failing prose, the latest step it ran (a tool call's own line), e.g. "Bash(npm test)".
   let action = null;
   for (let i = lines.length - 1; i >= 0 && !action; i--) {
     const m = lines[i].match(/^\s*⏺\s+(.+)$/);
     if (m) action = m[1].trim();
   }
-  return { recap, last, action, question, context, options };
+  return { recap, last, action, menu: readMenu(text) };
 }
 
-/** True when two parses offer the same choice (re-read before pressing a key). */
-export const sameChoice = (a, b) =>
-  Boolean(a?.options && b?.options) &&
-  a.question === b.question &&
-  (a.context ?? []).join("\n") === (b.context ?? []).join("\n") &&
-  a.options.length === b.options.length &&
-  a.options.every((o, i) => o.text === b.options[i].text);
+// ---- a waiting agent's menu
+// Ported from herdr-relevo's `lib/prompt.js` (Apache-2.0, https://github.com/johnny4young/herdr-relevo),
+// by way of quaresc/cockpit's prompt.rs (MIT, https://github.com/quaresc/cockpit); its key sequences were measured on Claude Code's menus.
+// Modified: translated to plain JS for this mod, plus the box text above the question.
+
+const OPTION = /^([❯›>]\s*)?(\d)\.\s+(.+?)\s*$/;
+const SUBMIT = /^([❯›>]\s*)?(Submit|Submit answers)$/i;
+const CHECK = /^\[([ xX✔✓✗])?\]\s*/;
+const FRAME = /^[│┃╭╮╰╯─━┌┐└┘|\s]+|[│┃╭╮╰╯─━┌┐└┘|\s]+$/g;
+const BESIDE = /\s{3,}[┌│└╭╰].*$/;
+const MAX_GAP = 4; // lines between two choices that still belong to the menu
+const TABS = (l) => l.startsWith("←") && l.endsWith("→");
+
+/**
+ * The menu at the bottom of a screen: { text, kind: single | multi | text, choices: [{ n, label,
+ * detail, checked, free }], cursor: n | "submit" | null, submitAfter, free, permission, context }.
+ * `context` is what the question is about (the command, the file): the box text above it.
+ */
+export function readMenu(screen) {
+  const all = String(screen ?? "").split("\n").map((l) => l.replace(FRAME, ""));
+  const lines = all.slice(-60);
+  const kept = lines.map((l) => l.trim()).filter((l) => l && !TABS(l));
+  const none = { text: kept.slice(-2).join("\n"), kind: "text", choices: [], cursor: null, submitAfter: null, free: null, permission: false, context: [] };
+  let last = -1;
+  for (let i = lines.length - 1; i >= 0 && last < 0; i--) if (OPTION.test(lines[i])) last = i;
+  if (last < 0) return none;
+  const num = (i) => Number(lines[i].match(OPTION)?.[2] ?? 0);
+  // Walk up from the last choice to choice 1.
+  const found = [[last, num(last)]];
+  for (let i = last, gap = 0; i > 0 && found[0][1] > 1 && gap <= MAX_GAP; ) {
+    i--;
+    if (!OPTION.test(lines[i])) { gap++; continue; }
+    if (num(i) !== found[0][1] - 1) break;
+    found.unshift([i, num(i)]);
+    gap = 0;
+  }
+  if (found[0][1] !== 1) return none;
+  const q = { ...none, kind: "single" };
+  found.forEach(([i, n], k) => {
+    const m = lines[i].match(OPTION);
+    const raw = m[3].replace(BESIDE, "");
+    if (m[1]) q.cursor = n;
+    const next = k + 1 < found.length ? found[k + 1][0] : Math.min(lines.length, i + 1 + MAX_GAP);
+    const detail = [];
+    for (const l of lines.slice(i + 1, next).map((l) => l.trim()).filter(Boolean)) {
+      const s = l.match(SUBMIT);
+      if (s) { q.submitAfter = n; if (s[1]) q.cursor = "submit"; }
+      else if (!OPTION.test(l)) detail.push(l);
+    }
+    const b = raw.match(CHECK);
+    q.choices.push({
+      n,
+      label: b ? raw.slice(b[0].length) : raw,
+      detail: k + 1 < found.length ? detail.join(" ") : "",
+      checked: b ? Boolean(b[1]) && b[1] !== " " : null,
+      free: false,
+    });
+  });
+  if (q.choices.some((c) => c.checked !== null)) q.kind = "multi";
+  // The question: the paragraph right above choice 1, two lines at most.
+  let i = found[0][0];
+  while (i > 0 && !lines[i - 1].trim()) i--;
+  const text = [];
+  while (i > 0 && text.length < 2) {
+    const l = lines[--i].trim();
+    if (!l || /^[❯›>]\s/.test(l) || TABS(l) || /^[☐☒]/.test(l)) { i++; break; }
+    text.unshift(l);
+  }
+  q.text = text.join("\n");
+  // What it's about: the box text above the question, up to 8 lines.
+  const context = [];
+  for (let k = i - 1, blanks = 0; k >= 0 && context.length < 8; k--) {
+    const l = lines[k].trim();
+    if (!l) { if (context.length && ++blanks >= 2) break; continue; }
+    if (TABS(l) || /^[☐☒⏺•✻※]/.test(l) || /^[❯›>]\s/.test(l)) break;
+    if (/^[─━╌╍┄┅┈┉═\s]+$/.test(l) || /^Tip:/.test(l)) continue; // rules and hints
+    blanks = 0;
+    context.unshift(l);
+  }
+  q.context = context;
+  // The free-text choice: "Type something", else in a single choice the one before "Chat about this".
+  const typed = q.choices.find((c) => /^type something/i.test(c.label));
+  const tail = q.choices[q.choices.length - 1];
+  q.free = typed?.n ?? (q.kind === "single" && /^chat about this/i.test(tail.label) && tail.n > 1 ? tail.n - 1 : null);
+  for (const c of q.choices) c.free = c.n === q.free;
+  q.permission = /^do you want to/i.test(q.text) && /^Yes/.test(q.choices[0].label);
+  return q;
+}
+
+/** The arrow presses from the cursor to choice `to` (null: Submit, which sits right after `submitAfter`). */
+export function moveKeys(q, to) {
+  const order = q.choices.flatMap((c) => (q.submitAfter === c.n ? [c.n, null] : [c.n]));
+  const at = q.cursor === "submit" ? null : q.cursor ?? 1;
+  const from = order.indexOf(at);
+  const target = order.indexOf(to);
+  if (from < 0 || target < 0) return [];
+  return Array(Math.abs(target - from)).fill(target > from ? "down" : "up");
+}
+
+/** True when two reads show the same menu (re-read before pressing a key). */
+export const sameMenu = (a, b) =>
+  Boolean(a?.choices?.length && b?.choices?.length) &&
+  a.text === b.text &&
+  a.kind === b.kind &&
+  a.choices.length === b.choices.length &&
+  a.choices.every((c, i) => c.label === b.choices[i].label);
+
+// ---- what a waiting Claude Code asks, from its transcript
+
+/** Its transcript, relative to the home folder: ~/.claude/projects/<cwd, every other character a dash>/<session>.jsonl. */
+export const transcriptPath = (cwd, session) =>
+  /^[\w-]+$/.test(String(session)) && cwd ? `.claude/projects/${String(cwd).replace(/[^A-Za-z0-9]/g, "-")}/${session}.jsonl` : null;
+
+/** The newest tool call without a result in a transcript's tail: { id, name, input }, or null. */
+export function pendingTool(text) {
+  const uses = [];
+  const done = new Set();
+  for (const l of String(text ?? "").split("\n")) {
+    if (!l.includes('"tool_')) continue;
+    let j;
+    try { j = JSON.parse(l); } catch { continue; } // the first line of a tail is cut
+    if (j?.isSidechain) continue;
+    const c = j?.message?.content;
+    if (!Array.isArray(c)) continue;
+    for (const b of c) {
+      if (b?.type === "tool_use") uses.push(b);
+      else if (b?.type === "tool_result") done.add(b.tool_use_id);
+    }
+  }
+  for (let i = uses.length - 1; i >= 0; i--) if (!done.has(uses[i].id)) return { id: uses[i].id, name: String(uses[i].name ?? ""), input: uses[i].input ?? {} };
+  return null;
+}
+
+/**
+ * A pending tool call told plainly: { tool, lines, note } for a permission (the whole command,
+ * the file), or { questions } for AskUserQuestion.
+ */
+export function describeTool(t) {
+  if (!t) return null;
+  const i = t.input ?? {};
+  if (t.name === "AskUserQuestion" && Array.isArray(i.questions)) {
+    return {
+      tool: t.name,
+      questions: i.questions.map((q) => ({
+        question: String(q.question ?? ""),
+        header: String(q.header ?? ""),
+        multi: Boolean(q.multiSelect),
+        options: (Array.isArray(q.options) ? q.options : []).map((o) => ({ label: String(o.label ?? ""), description: String(o.description ?? "") })),
+      })),
+    };
+  }
+  const lines = (s) => String(s ?? "").split("\n").filter((l) => l.trim());
+  if (t.name === "Bash") return { tool: "Bash", lines: lines(i.command).slice(0, 10), note: i.description ?? null };
+  if (/^(Edit|MultiEdit|Write|NotebookEdit|Read)$/.test(t.name)) {
+    const body = t.name === "Write" ? lines(i.content) : t.name === "Edit" ? lines(i.new_string) : [];
+    return { tool: t.name, lines: [i.file_path ?? i.notebook_path ?? "", ...body.slice(0, 4).map((l) => `+ ${l}`)].filter(Boolean), note: null };
+  }
+  if (t.name === "WebFetch") return { tool: t.name, lines: [i.url ?? ""], note: i.prompt ?? null };
+  if (t.name === "WebSearch") return { tool: t.name, lines: [i.query ?? ""], note: null };
+  return { tool: t.name, lines: [JSON.stringify(i).slice(0, 400)], note: null };
+}
 
 // ---- plan limits
 
@@ -100,10 +217,12 @@ export function claudeTapes(line, now = Date.now()) {
   if (!r) throw new Error("no rate_limits");
   const out = [];
   const limits = Array.isArray(r.limits) ? r.limits : [];
-  const session = limits.find((l) => l.kind === "session");
+  // \`limits\` is the newer shape; \`five_hour\` / \`seven_day\` say the same when it's missing.
+  const legacy = (w) => (w && w.utilization != null && w.resets_at ? { percent: w.utilization, resets_at: w.resets_at } : null);
+  const session = limits.find((l) => l.kind === "session") ?? legacy(r.five_hour);
   // No session window yet means nothing used in the last five hours.
   out.push(session ? tape("CL 5H", session.percent, Date.parse(session.resets_at), 300, now) : { name: "CL 5H", pct: 0, pace: null, reset: null, quiet: true });
-  const weekly = limits.find((l) => l.kind === "weekly_all");
+  const weekly = limits.find((l) => l.kind === "weekly_all") ?? legacy(r.seven_day);
   if (weekly) out.push(tape("CL 7D", weekly.percent, Date.parse(weekly.resets_at), 10080, now));
   for (const l of limits.filter((l) => l.kind === "weekly_scoped" && l.is_active !== false)) {
     out.push({ ...tape(`CL ${(l.scope?.model?.display_name ?? "MODEL").slice(0, 5)}`, l.percent, Date.parse(l.resets_at), WINDOW[l.kind], now), model: l.scope?.model?.display_name ?? null });

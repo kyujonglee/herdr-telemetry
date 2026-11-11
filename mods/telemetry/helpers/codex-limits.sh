@@ -2,9 +2,9 @@
 # Codex plan limits and the signed-in account as one JSON line:
 # {"limits": <account/rateLimits/read reply>, "account": <account/read reply or null>}.
 # Sends no prompt. 127: no CLI, 1: no answer.
-bin=${COCKPIT_CODEX_BIN:-codex}
+bin=${TELEMETRY_CODEX_BIN:-codex}
 command -v "$bin" >/dev/null 2>&1 || exit 127
-dir=$(mktemp -d "${TMPDIR:-/tmp}/cockpit-codex.XXXXXX") || exit 1
+dir=$(mktemp -d "${TMPDIR:-/tmp}/telemetry-codex.XXXXXX") || exit 1
 pid=
 cleanup() { [ -n "$pid" ] && kill "$pid" 2>/dev/null; exec 3>&- 2>/dev/null; rm -rf "$dir"; }
 trap cleanup EXIT INT TERM
@@ -12,7 +12,7 @@ mkfifo "$dir/in" || exit 1
 "$bin" app-server <"$dir/in" >"$dir/out" 2>"$dir/err" &
 pid=$!
 exec 3>"$dir/in"
-printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"herdr-cockpit","version":"1.0.0"}}}' >&3
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"herdr-telemetry","version":"1.0.0"}}}' >&3
 i=0
 while [ "$i" -lt 150 ]; do
   grep -q '"id":1' "$dir/out" 2>/dev/null && break

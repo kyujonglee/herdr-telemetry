@@ -1,11 +1,11 @@
-// Cockpit's drawing kit: the HUD palette, type, panel frames, collapsing and
-// the motion switch, shared by every role of the cockpit mod.
+// Telemetry's drawing kit: the HUD palette, type, panel frames, collapsing and
+// the motion switch, shared by every role of the telemetry mod.
 
 import { div, svg, PathBuilder, Background } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { layout, run, shared, setShared, window as appWindow } from "herdr";
 
-export const ASSETS = "mods/cockpit";
+export const ASSETS = "mods/telemetry";
 export const HUD = "Rajdhani";
 export const MONO = "IBM Plex Mono";
 
@@ -63,8 +63,8 @@ export function icon(name, size = 12, color = C.muted) {
 
 // ---- motion: one switch for every loop, spin and frame strip
 
-// Motion runs only while the window is in front: a cockpit in the background stays still.
-export const motionSetting = () => shared("cockpit.motion") !== false;
+// Motion runs only while the window is in front: a telemetry in the background stays still.
+export const motionSetting = () => shared("telemetry.motion") !== false;
 export const motionOn = () => motionSetting() && appWindow()?.active !== false;
 /** Applies `fn` (a .loop / .spin / .frames) only while motion is on. */
 export const move = (el, fn) => (motionOn() ? fn(el) : el);
@@ -122,8 +122,8 @@ export function toggleCollapse(id, open) {
   const root = layout();
   const node = find(root, id);
   if (!node) return;
-  const key = `cockpit.size.${id}`;
-  const lentKey = `cockpit.lent.${id}`;
+  const key = `telemetry.size.${id}`;
+  const lentKey = `telemetry.lent.${id}`;
   if (isCollapsed(id)) {
     run("layout.resize", { id, ...(shared(key) ?? open ?? { weight: 1 }) });
     const lent = shared(lentKey);

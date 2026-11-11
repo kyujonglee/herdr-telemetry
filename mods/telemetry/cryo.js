@@ -4,7 +4,7 @@
 
 import { agents, exec, hc, home, readTextFile, run, shared, setShared, notify, machines, spaces } from "herdr";
 
-const KEY = "cockpit.cryo";
+const KEY = "telemetry.cryo";
 export const sleepers = () => (Array.isArray(shared(KEY)) ? shared(KEY) : []);
 const save = (list) => setShared(KEY, list);
 

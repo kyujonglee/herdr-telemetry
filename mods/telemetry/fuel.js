@@ -24,7 +24,7 @@ const HERE = "this Mac";
 export default class Fuel {
   init(props, cx) {
     this.props = props ?? {};
-    // One read per provider per machine: "claude|" is this Mac, "claude|macmini" another.
+    // One read per provider per machine: "claude|" is this Mac, "claude|studio" another.
     this.reads = new Map(); // key → { provider, machine, tapes, account, readAt, error }
     this.scripts = {};
     this.at = 0;
@@ -43,7 +43,7 @@ export default class Fuel {
     this.loading = true;
     cx.notify();
     cx.spawn(async (cx) => {
-      const dir = `${appHome()}/mods/cockpit/helpers`;
+      const dir = `${appHome()}/mods/telemetry/helpers`;
       let ok = false;
       const live = new Set();
       await Promise.all(this.targets().flatMap((m) => PROVIDERS.map(async (p) => {
@@ -60,6 +60,12 @@ export default class Fuel {
           const line = r.stdout.trim().split("\n").pop();
           const readAt = Date.now();
           const tapes = (p.parse(line) ?? []).map((t) => ({ ...t, readAt }));
+          // An answer that leaves out a window it gave before (it happens) keeps the last
+          // numbers for that window until it would have reset.
+          for (const t of prev?.tapes ?? []) if (!t.quiet && t.reset && t.readAt + t.reset > readAt && !tapes.some((x) => x.win === t.win && !x.quiet)) {
+            const i = tapes.findIndex((x) => x.win === t.win);
+            if (i >= 0) tapes[i] = t; else tapes.push(t);
+          }
           const account = p.accountOf ? p.accountOf(line) : await p.account(run).catch(() => null);
           this.reads.set(key, { provider: p.id, machine: m, tapes, account, readAt });
           ok = true;
@@ -99,8 +105,8 @@ export default class Fuel {
     const m = this.machine();
     const worst = this.groups(m).flatMap((g) => g.tapes.map((t) => ({ ...t, name: `${g.provider.name} ${t.win} on ${m ?? HERE}` })))
       .reduce((w, t) => (t.pct > (w?.pct ?? -1) ? t : w), null);
-    const prev = shared("cockpit.fuel");
-    if (worst && (prev?.pct !== worst.pct || prev?.name !== worst.name)) setShared("cockpit.fuel", { pct: worst.pct, name: worst.name });
+    const prev = shared("telemetry.fuel");
+    if (worst && (prev?.pct !== worst.pct || prev?.name !== worst.name)) setShared("telemetry.fuel", { pct: worst.pct, name: worst.name });
   }
 
   // One limit window as a row: name, gauge (fill = used, tick = time passed), %, reset.

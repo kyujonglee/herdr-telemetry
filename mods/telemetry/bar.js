@@ -14,7 +14,7 @@ export default class Bar {
   init(_props, cx) {
     // Columns this bar folded for a narrow window; kept in shared state so a reload
     // still brings them back when the window widens.
-    this.auto = new Set(shared("cockpit.auto") ?? []);
+    this.auto = new Set(shared("telemetry.auto") ?? []);
     // The clock shows minutes: look every 2 s, redraw only when the minute turns.
     this.minute = Math.floor(Date.now() / 60000);
     cx.timer.every(2000, (cx) => {
@@ -38,7 +38,7 @@ export default class Bar {
       .cursor_pointer()
       .hover((s) => s.bg("#ffb5472e"))
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-      .on_click(() => { if (this.auto.delete(id)) setShared("cockpit.auto", [...this.auto]); run("layout.toggle", { id }); })
+      .on_click(() => { if (this.auto.delete(id)) setShared("telemetry.auto", [...this.auto]); run("layout.toggle", { id }); })
       .tooltip(on)
       .child(icon(id === "c-left" ? "panel-left" : id === "c-right" ? "panel-right" : "panel-bottom", 14, shown ? C.amber : C.dim));
   }
@@ -53,19 +53,19 @@ export default class Bar {
       if (width < min && (before == null || before >= min) && !isHidden(id)) { this.auto.add(id); run("layout.hide", { id }); }
       else if (width >= min + 40 && this.auto.has(id)) { this.auto.delete(id); run("layout.show", { id }); }
       else continue;
-      setShared("cockpit.auto", [...this.auto]);
+      setShared("telemetry.auto", [...this.auto]);
     }
   }
 
   render() {
     const list = agents();
-    // agent.next / agent.prev follow the cockpit's order (input, done, working, idle);
+    // agent.next / agent.prev follow this layout's order (input, done, working, idle);
     // set here because the bar never hides.
     setAgentOrder([...list].sort((a, b) => (RANK[b.status] ?? 0) - (RANK[a.status] ?? 0) || b.seq - a.seq).map((a) => a.address));
-    const cryo = shared("cockpit.cryo") ?? [];
+    const cryo = shared("telemetry.cryo") ?? [];
     const blocked = list.filter((a) => a.status === "blocked");
     const awake = list.filter((a) => a.status === "working").length;
-    const fuel = shared("cockpit.fuel");
+    const fuel = shared("telemetry.fuel");
     const now = new Date();
     const mac = appWindow()?.platform === "macos";
 
@@ -108,7 +108,7 @@ export default class Bar {
       .border_b(1)
       .border_color("#ffb5472e")
       .bg("#08090b")
-      .child(div().font_family(HUD).font_weight(700).text_size(15).text_color(C.amber).whitespace_nowrap().child(track("Herdr // Cockpit")))
+      .child(div().font_family(HUD).font_weight(700).text_size(15).text_color(C.amber).whitespace_nowrap().child(track("Herdr // Telemetry")))
       .child(tape)
       .child(
         h_flex().gap(16).items_center().flex_none()
@@ -132,7 +132,7 @@ export default class Bar {
                 .bg(motionSetting() ? "#5ce1e61a" : "#00000000")
                 .cursor_pointer().hover((s) => s.bg("#5ce1e62e"))
                 .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-                .on_click(() => setShared("cockpit.motion", !motionSetting()))
+                .on_click(() => setShared("telemetry.motion", !motionSetting()))
                 .tooltip(motionSetting() ? "Motion on (pauses while the window is in the background)" : "Motion off")
                 .child(icon("motion", 14, motionSetting() ? C.cyan : C.dim))
             ))
