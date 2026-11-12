@@ -4,7 +4,9 @@
 // the space's machine has terminals open now. Also New space and the worktree entries
 // of Herdr's own + menu, in the picked folder. Keys 1–9 start the agents in order.
 // Folders you add by typing a path stay listed (right under the focused one) until
-// you × them. While you type, the folders there are offered below the field (Tab, Enter
+// you × them. Every row has a ×; a ×'d folder stays hidden (shared "telemetry.hidden"),
+// even the focused or an open terminal's, until something is started in it or it's
+// added again. While you type, the folders there are offered below the field (Tab, Enter
 // on a half-typed name, or a click fills one in; ↑/↓ moves between them). History: shared "telemetry.folders" =
 // { "<machine>" ("" for this one): [{ path, n, at, added? }] }; folders that no
 // longer exist there are dropped each time the menu opens.
@@ -19,6 +21,8 @@ const AGENTS = "telemetry.agents"; // the last agents each machine reported, sho
 const HOMES = "telemetry.homes"; // other machines' home folders, as last asked
 const SHOWN = 7; // folders offered at most
 const KEPT = 20; // history entries kept per machine
+const HIDDEN = "telemetry.hidden"; // { "<machine>": [path] }: folders ×'d away, newest first
+const HIDDEN_KEPT = 50;
 // Tab, ↑ and ↓ inside the path field: bound as actions in its own key context, so they
 // win over the window's Tab (which moves the keyboard to the next control).
 const KEYS = [["tab", "telemetry_path_complete"], ["down", "telemetry_path_next"], ["up", "telemetry_path_prev"]];
@@ -46,7 +50,7 @@ export default class Launch {
     this.agents = shared(AGENTS)?.[this.where] ?? [];
     // The space's machine's home, shown as ~: this one's, or another's as last asked (asked again below).
     this.home = this.space?.machine ? shared(HOMES)?.[this.where] ?? null : home();
-    this.folder = this.focusedCwd() ?? this.folders()[0] ?? null;
+    this.folder = this.folders()[0] ?? null;
     this.handle = cx.focus_handle();
     this.handle.focus();
     if (!bound) { cx.bind_keys(KEYS.map(([keystroke, action]) => ({ keystroke, action, context: "TelemetryPath" }))); bound = true; }
@@ -84,7 +88,7 @@ export default class Launch {
       if (!gone.length) return;
       // Only the ones asked about: a folder added meanwhile stays.
       setShared(FOLDERS, { ...(shared(FOLDERS) ?? {}), [this.where]: this.history().filter((h) => !gone.includes(h.path)) });
-      if (gone.includes(this.folder)) this.folder = this.focusedCwd() ?? null;
+      if (gone.includes(this.folder)) this.folder = this.folders()[0] ?? null;
       cx.notify();
     });
   }
@@ -178,6 +182,7 @@ export default class Launch {
         const was = this.history().find((x) => x.path === path);
         const h = [{ path, n: was?.n ?? 0, at: was?.at ?? Date.now(), added: true }, ...this.history().filter((x) => x.path !== path)];
         setShared(FOLDERS, { ...all, [this.where]: h });
+        this.unhide(path);
         this.folder = path;
         this.note = null;
         this.input.set_value("");
@@ -203,17 +208,31 @@ export default class Launch {
     return panes().filter((p) => p.terminal && p.cwd && machineOf.get(p.tab) === this.where).map((p) => p.cwd);
   }
 
+  // Folders ×'d away on the space's machine: kept hidden even while a terminal is open
+  // there, until this menu starts something in one or it's added again.
+  hidden() {
+    const h = shared(HIDDEN)?.[this.where];
+    return Array.isArray(h) ? h : [];
+  }
+
+  unhide(path) {
+    if (!this.hidden().includes(path)) return;
+    setShared(HIDDEN, { ...(shared(HIDDEN) ?? {}), [this.where]: this.hidden().filter((x) => x !== path) });
+  }
+
   folders() {
     const added = this.history().filter((h) => h.added).map((h) => h.path);
     const used = this.history().filter((h) => !h.added).sort((a, b) => b.n - a.n || b.at - a.at).map((h) => h.path);
+    const hidden = this.hidden();
     const out = [];
-    for (const f of [this.focusedCwd(), ...added, ...used, ...this.liveCwds()]) if (f && !out.includes(f)) out.push(f);
+    for (const f of [this.focusedCwd(), ...added, ...used, ...this.liveCwds()]) if (f && !out.includes(f) && !hidden.includes(f)) out.push(f);
     // Added folders are always offered; the rest fill up to SHOWN.
     return out.slice(0, Math.max(SHOWN, 1 + added.length));
   }
 
   remember(path) {
     if (!path) return;
+    this.unhide(path);
     const all = shared(FOLDERS) ?? {};
     const h = this.history().filter((x) => x.path !== path);
     const was = this.history().find((x) => x.path === path);
@@ -223,10 +242,13 @@ export default class Launch {
     setShared(FOLDERS, { ...all, [this.where]: keep });
   }
 
+  // Out of the history, and hidden so an open terminal there doesn't bring it back.
   forget(path) {
     const all = shared(FOLDERS) ?? {};
     setShared(FOLDERS, { ...all, [this.where]: this.history().filter((x) => x.path !== path) });
-    if (this.folder === path) this.folder = this.focusedCwd() ?? null;
+    const hidden = [path, ...this.hidden().filter((x) => x !== path)].slice(0, HIDDEN_KEPT);
+    setShared(HIDDEN, { ...(shared(HIDDEN) ?? {}), [this.where]: hidden });
+    if (this.folder === path) this.folder = this.folders()[0] ?? null;
   }
 
   // Closes the menu, then starts it in the picked folder.
@@ -243,7 +265,6 @@ export default class Launch {
 
   folderRow(path, i) {
     const on = path === this.folder;
-    const known = this.history().some((h) => h.path === path);
     return h_flex().id(`fd-${i}`).h(28).px(8).gap(8).items_center().flex_none().cursor_pointer()
       .border(1).border_color(on ? "#5ce1e666" : "#00000000").bg(on ? "#5ce1e614" : "#00000000")
       .hover((st) => st.bg("#5ce1e61f"))
@@ -251,12 +272,12 @@ export default class Launch {
       .on_click((_e, cx) => { this.folder = path; cx.notify(); })
       .child(div().w(6).h(6).flex_none().bg(on ? C.cyan : C.faint))
       .child(pathLine(path, { home: this.home, on, size: 11.5 }))
-      .when(known, (el) => el.child(
+      .child(
         div().id(`fd-x-${i}`).w(16).h(16).flex().flex_none().items_center().justify_center().text_size(11).text_color(C.dim)
           .hover((st) => st.text_color(C.amber).bg("#ffb5471f")).tooltip("Forget this folder")
           .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
           .on_click((_e, cx) => { cx.stop_propagation(); this.forget(path); cx.notify(); })
-          .child("×")));
+          .child("×"));
   }
 
   row(id, glyph, name, hint, action, enabled = true) {
