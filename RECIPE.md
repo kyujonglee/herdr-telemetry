@@ -217,7 +217,7 @@ root column  (titlebar none, traffic_lights [18,17], theme graphite, ui_font Raj
   - It types into a terminal only when you press a choice, Submit, or Enter in the answer field.
 - **macOS-oriented.** It relies on `ps -axo …`, `sysctl hw.ncpu`, `lsof` and `open`. Linux needs those swapped.
 - **`get_usage` is an internal Claude Code control request.** A CLI update may change it; the panel then shows "no answer".
-- **The same login can show different limits on two machines.** Seen on one Max account: the two machines' `get_usage` replies had different weekly windows (different start and reset times). Plan limits shows each machine's own reply and follows the active space's machine. A reply that leaves out a window it gave before keeps the last numbers for that window until it would have reset.
+- **The same login can show different limits on two machines.** Seen on one Max account: the two machines' `get_usage` replies had different weekly windows (different start and reset times). Plan limits shows each machine's own reply and follows the active space's machine. A reply that leaves out a window it gave before keeps the last numbers for that window until it would have reset, as long as the same account is signed in; after switching accounts only the new reply shows.
 - **Paths are hard-coded to `mods/telemetry`** (icons and helpers). If you rename the mod, change `ASSETS` in `hud.js` and the helpers path in `fuel.js`.
 - **gpui details that bit the build:**
   - `line_height(n)` is a multiplier; use `"16px"`.

@@ -60,13 +60,15 @@ export default class Fuel {
           const line = r.stdout.trim().split("\n").pop();
           const readAt = Date.now();
           const tapes = (p.parse(line) ?? []).map((t) => ({ ...t, readAt }));
+          const account = p.accountOf ? p.accountOf(line) : await p.account(run).catch(() => null);
           // An answer that leaves out a window it gave before (it happens) keeps the last
-          // numbers for that window until it would have reset.
-          for (const t of prev?.tapes ?? []) if (!t.quiet && t.reset && t.readAt + t.reset > readAt && !tapes.some((x) => x.win === t.win && !x.quiet)) {
+          // numbers for that window until it would have reset, but only for the same account:
+          // after switching accounts the old account's windows are someone else's numbers.
+          const same = Boolean(account?.email) && account.email === prev?.account?.email;
+          for (const t of same ? prev.tapes : []) if (!t.quiet && t.reset && t.readAt + t.reset > readAt && !tapes.some((x) => x.win === t.win && !x.quiet)) {
             const i = tapes.findIndex((x) => x.win === t.win);
             if (i >= 0) tapes[i] = t; else tapes.push(t);
           }
-          const account = p.accountOf ? p.accountOf(line) : await p.account(run).catch(() => null);
           this.reads.set(key, { provider: p.id, machine: m, tapes, account, readAt });
           ok = true;
         } catch (e) {
